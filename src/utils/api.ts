@@ -12,7 +12,11 @@ import superjson from "superjson";
 import { type AppRouter } from "~/server/api/root";
 
 const getBaseUrl = () => {
-  if (typeof window !== "undefined") return ""; // browser should use relative url
+  if (typeof window !== "undefined") {
+    console.log("coming here");
+    return "";
+  } // browser should use relative url
+  console.log("returning from here");
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
   return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
 };

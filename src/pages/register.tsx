@@ -6,12 +6,14 @@ export default function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const router = useRouter();
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const register = api.user.register.useMutation({
     onSuccess: async () => {
       alert("Registered successfully! You can now sign in.");
       await router.push("/");
     },
     onError: (err) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       alert(err.message);
     },
   });
@@ -22,6 +24,7 @@ export default function Register() {
         className="flex w-96 flex-col gap-4 rounded bg-white p-6 shadow-md"
         onSubmit={(e) => {
           e.preventDefault();
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
           register.mutate(form);
         }}
       >
