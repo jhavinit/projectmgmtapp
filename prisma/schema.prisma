@@ -28,49 +28,110 @@ datasource db {
 // }
 
 // Necessary for Next auth
-model Account {
-    id                       String  @id @default(cuid())
-    userId                   String
-    type                     String
-    provider                 String
-    providerAccountId        String
-    refresh_token            String? // @db.Text
-    access_token             String? // @db.Text
-    expires_at               Int?
-    token_type               String?
-    scope                    String?
-    id_token                 String? // @db.Text
-    session_state            String?
-    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-    refresh_token_expires_in Int?
+// model Account {
+//     id                       String  @id @default(cuid())
+//     userId                   String
+//     type                     String
+//     provider                 String
+//     providerAccountId        String
+//     refresh_token            String? // @db.Text
+//     access_token             String? // @db.Text
+//     expires_at               Int?
+//     token_type               String?
+//     scope                    String?
+//     id_token                 String? // @db.Text
+//     session_state            String?
+//     user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+//     refresh_token_expires_in Int?
 
-    @@unique([provider, providerAccountId])
-}
+//     @@unique([provider, providerAccountId])
+// }
 
-model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+
+// model VerificationToken {
+//     identifier String
+//     token      String   @unique
+//     expires    DateTime
+
+//     @@unique([identifier, token])
+// }
+
+// model Session {
+//     id           String   @id @default(cuid())
+//     sessionToken String   @unique
+//     userId       String
+//     expires      DateTime
+//     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// }
 
 model User {
     id            String    @id @default(cuid())
-    name          String?
-    email         String?   @unique
-    emailVerified DateTime?
-    image         String?
-    accounts      Account[]
-    sessions      Session[]
-    // posts         Post[]
+    name          String
+    email         String   @unique
     password      String
+
+    projects  Project[]
+
+    tasksAssigned  Task[] @relation("AssignedTasks")
+    tasksCreated   Task[] @relation("CreatedTasks")
+
+    // emailVerified DateTime?
+    // image         String?
+    // accounts      Account[]
+    // sessions      Session[]
+    // posts         Post[]
+
+    // preferences   Json?
+
+    // teams         TeamMember[]
+    // tasksAssigned Task[]   @relation("AssignedTasks")
+    // tasksCreated  Task[]   @relation("CreatedTasks")
 }
 
-model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+model Project {
+  id     String   @id @default(cuid())
+  name   String
+  details String
+  user   User     @relation(fields: [userId], references: [id])
+  userId String
+  createdAt DateTime @default(now())
 
-    @@unique([identifier, token])
+  tasks     Task[]   // ✅ This is the missing back-relation
+}
+
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  status      TaskStatus @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  deadline    DateTime
+  tags        String[]   // array of strings
+
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id])
+
+  createdById String
+  createdBy   User       @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  assignedToId String?
+  assignedTo   User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+}
+
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
 }
