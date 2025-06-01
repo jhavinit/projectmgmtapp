@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Folder, LogOut, LayoutDashboard, User } from "lucide-react";
+import { ChartLine, Folder, LogOut, LayoutDashboard, User } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -38,6 +38,16 @@ export default function Sidebar() {
             >
               <Folder size={18} />
               <span>Projects</span>
+            </Link>
+          </li>
+
+          <li>
+            <Link
+              href="/analytics"
+              className="flex items-center gap-2 rounded px-3 py-2 hover:bg-gray-700 focus:bg-gray-700 focus:outline-none"
+            >
+              <ChartLine size={18} />
+              <span>Analytics</span>
             </Link>
           </li>
         </ul>

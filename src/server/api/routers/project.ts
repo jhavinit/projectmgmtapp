@@ -4,6 +4,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
+// import { getProjectSummary } from "~/server/utils/openai";
+import { summarizeWithHuggingFace } from "~/server/utils/openai";
 
 export const projectRouter = createTRPCRouter({
   // // Get all projects assigned to current user
@@ -51,21 +53,33 @@ export const projectRouter = createTRPCRouter({
     return projects;
   }),
 
+  generateSummary: protectedProcedure
+    .input(z.object({ summary: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const summary = await summarizeWithHuggingFace(input.summary);
+
+      return summary;
+    }),
+
   // Create project and assign current user
   create: protectedProcedure
     .input(
       z.object({
         name: z.string().min(1),
         details: z.string().min(1),
+        summary: z.string().optional(),
         userIds: z.array(z.string()),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // const summary = await summarizeWithHuggingFace(input.details);
+
       // create project first
       const project = await ctx.db.project.create({
         data: {
           name: input.name,
           details: input.details,
+          summary: input.summary ?? "",
         },
       });
 
@@ -99,6 +113,7 @@ export const projectRouter = createTRPCRouter({
         id: z.string(),
         name: z.string().min(1),
         details: z.string().min(1),
+        summary: z.string().optional(),
         userIds: z.array(z.string()),
       }),
     )
@@ -109,6 +124,7 @@ export const projectRouter = createTRPCRouter({
         data: {
           name: input.name,
           details: input.details,
+          summary: input.summary ?? "",
         },
       });
 

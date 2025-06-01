@@ -1,10 +1,9 @@
-import KanbanBoard from "~/components/KanbanBoard";
 import GanttChart from "~/components/GanttChart";
 
-export default function DashboardPage() {
+export default function AnalyticsPage() {
   return (
     <div className="flex w-full flex-col p-4">
-      <KanbanBoard />
+      <GanttChart />
     </div>
   );
 }

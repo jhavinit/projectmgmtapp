@@ -66,6 +66,12 @@ export default function TasksPage() {
 
   const { data: users } = api.user.getAll.useQuery(); // example api call to fetch users
 
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  const [filterType, setFilterType] = useState<TaskType | "ALL">("ALL");
+  const [filterPriority, setFilterPriority] = useState<
+    "LOW" | "MEDIUM" | "HIGH" | "ALL"
+  >("ALL");
+
   const router = useRouter();
   const projectId = router.query.id as string;
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODO);
@@ -311,90 +317,130 @@ export default function TasksPage() {
           </ul>
         ) : (
           // List view
-          <ul className="flex flex-col divide-y divide-gray-300 rounded bg-white shadow">
-            {tasks.map((task) => (
-              <li
-                key={task.id}
-                className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50"
-              >
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="rounded bg-blue-700 p-2 text-white shadow">
-                    <TaskTypeIcon type={task.type} />
-                  </div>
 
-                  <div className="min-w-0">
-                    <h3 className="flex items-center gap-2 truncate text-lg font-semibold">
-                      {task.title}
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          task.status === "TODO"
-                            ? "bg-gray-200 text-gray-700"
-                            : task.status === "IN_PROGRESS"
-                              ? "bg-yellow-200 text-yellow-800"
-                              : task.status === "DONE"
-                                ? "bg-green-200 text-green-800"
-                                : "bg-gray-100 text-gray-500"
-                        } `}
-                      >
-                        {task.status}
-                      </span>
-                    </h3>
+          <>
+            <div className="mb-5 flex flex-wrap items-center gap-3">
+              {/* Filter by Type */}
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-medium">Type:</span>
+                <select
+                  value={filterType}
+                  onChange={(e) =>
+                    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+                    setFilterType(e.target.value as TaskType | "ALL")
+                  }
+                  className="rounded border px-2 py-1 text-sm"
+                >
+                  <option value="ALL">All</option>
+                  <option value="FEATURE">Feature</option>
+                  <option value="BUG">Bug</option>
+                  <option value="IMPROVEMENT">Improvement</option>
+                </select>
+              </div>
 
-                    <p className="truncate text-sm text-gray-600">
-                      {task.description}
-                    </p>
+              {/* Filter by Priority */}
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-medium">Priority:</span>
+                <select
+                  value={filterPriority}
+                  onChange={(e) =>
+                    setFilterPriority(e.target.value as typeof filterPriority)
+                  }
+                  className="rounded border px-2 py-1 text-sm"
+                >
+                  <option value="ALL">All</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
+            </div>
 
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <Clock size={14} />
-                        {new Date(task.deadline).toLocaleDateString()}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <PriorityIcon priority={task.priority} />
-                        {task.priority}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <User size={14} />
-                        {users?.find((u) => u.id === task.assignedToId)?.name ??
-                          "Unassigned"}
-                      </div>
-                      {task.tags?.map((tag) => (
+            <ul className="flex flex-col divide-y divide-gray-300 rounded bg-white shadow">
+              {tasks.map((task) => (
+                <li
+                  key={task.id}
+                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50"
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="rounded bg-blue-700 p-2 text-white shadow">
+                      <TaskTypeIcon type={task.type} />
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="flex items-center gap-2 truncate text-lg font-semibold">
+                        {task.title}
                         <span
-                          key={tag}
-                          className="inline-flex items-center rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            task.status === "TODO"
+                              ? "bg-gray-200 text-gray-700"
+                              : task.status === "IN_PROGRESS"
+                                ? "bg-yellow-200 text-yellow-800"
+                                : task.status === "DONE"
+                                  ? "bg-green-200 text-green-800"
+                                  : "bg-gray-100 text-gray-500"
+                          } `}
                         >
-                          <Tag size={12} className="mr-1" />
-                          {tag}
+                          {task.status}
                         </span>
-                      ))}
+                      </h3>
+
+                      <p className="truncate text-sm text-gray-600">
+                        {task.description}
+                      </p>
+
+                      <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Clock size={14} />
+                          {new Date(task.deadline).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <PriorityIcon priority={task.priority} />
+                          {task.priority}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <User size={14} />
+                          {users?.find((u) => u.id === task.assignedToId)
+                            ?.name ?? "Unassigned"}
+                        </div>
+                        {task.tags?.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                          >
+                            <Tag size={12} className="mr-1" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openDrawerForEdit(task)}
-                    className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
-                    title="Edit Task"
-                  >
-                    <Edit2 size={16} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTaskToDelete(task.id);
-                      setDeleteDialogOpen(true);
-                    }}
-                    className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
-                    title="Delete Task"
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openDrawerForEdit(task)}
+                      className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
+                      title="Edit Task"
+                    >
+                      <Edit2 size={16} />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTaskToDelete(task.id);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+                      title="Delete Task"
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )
       ) : (
         <NoDataFound />

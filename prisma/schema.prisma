@@ -34,7 +34,7 @@ model Project {
   name               String
   details            String
   createdAt          DateTime            @default(now())
-
+  summary            String?            
   // Relations
   projectAssignments ProjectAssignment[]
   tasks              Task[]
@@ -64,6 +64,7 @@ model Task {
   description   String
   status        TaskStatus   @default(TODO)
   priority      TaskPriority @default(MEDIUM)
+  startDate     DateTime   @default(now())
   deadline      DateTime
   tags          String[]     // Array of tag strings
   type          TaskType     @default(TASK)

@@ -15,12 +15,16 @@ import "react-quill/dist/quill.snow.css";
 import dynamic from "next/dynamic";
 import DOMPurify from "dompurify";
 import Loading from "~/components/Loading";
+import { Sparkles } from "lucide-react"; // or use emoji/icon of your choice
 
 export default function ProjectsPage() {
   const ReactQuill = useMemo(
     () => dynamic(() => import("react-quill"), { ssr: false }),
     [],
   );
+  const [summary, setSummary] = useState<string | null>(null);
+  const generateSummary = api.project.generateSummary.useMutation();
+
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const { data: users = [] } = api.user.getAll.useQuery();
 
@@ -43,11 +47,28 @@ export default function ProjectsPage() {
     setDetails("");
     setProjectId(null);
     setIsEditMode(false);
+    setSummary(null);
+    setSelectedUserIds([]);
   };
 
   const openDrawerForCreate = () => {
     resetForm();
     setDrawerOpen(true);
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!details.trim()) {
+      toast.error("Please enter project details to summarize.");
+      return;
+    }
+
+    try {
+      const result = await generateSummary.mutateAsync({ summary: details });
+      setSummary(result); // adjust this based on your actual returned data
+      toast.success("Summary generated");
+    } catch (error) {
+      toast.error("Failed to generate summary");
+    }
   };
 
   // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
@@ -59,6 +80,7 @@ export default function ProjectsPage() {
     setName(project.name);
     setDetails(project.details);
     setProjectId(project.id);
+    setSummary(project.summary);
     setIsEditMode(true);
     setDrawerOpen(true);
     setSelectedUserIds(
@@ -111,15 +133,26 @@ export default function ProjectsPage() {
   });
 
   const handleFormSubmit = () => {
+    if (selectedUserIds.length === 0) {
+      toast.error("Please assign at least one user to the project");
+      return;
+    }
+
     if (isEditMode && projectId) {
       editProject.mutate({
         id: projectId,
         name,
         details,
+        summary: summary ?? "",
         userIds: selectedUserIds,
       });
     } else {
-      createProject.mutate({ name, details, userIds: selectedUserIds });
+      createProject.mutate({
+        name,
+        details,
+        summary: summary ?? "",
+        userIds: selectedUserIds,
+      });
     }
   };
 
@@ -143,35 +176,67 @@ export default function ProjectsPage() {
           {projects.map((project) => (
             <li
               key={project.id}
-              className="relative h-64 rounded-lg border border-gray-300 bg-white p-6 shadow-md hover:shadow-xl"
+              className="relative flex flex-col justify-between rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-lg"
             >
-              <div className="absolute left-4 top-4 rounded-full bg-blue-600 p-2 text-white shadow">
-                <FilePlus2 className="h-6 w-6" />
+              {/* Header */}
+              <div className="flex items-start gap-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <FilePlus2 size={20} />
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    {project.name}
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {new Date(project.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
 
-              <h3 className="mb-2 ml-10 text-xl font-semibold">
-                {project.name}
-              </h3>
-
-              <div className="mb-6 ml-10 max-h-24 overflow-y-auto pr-2 text-sm text-gray-600">
-                <div
-                  dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(project.details),
-                  }}
-                />
+              {/* Details */}
+              <div className="mt-4 rounded border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                <h4 className="mb-1 font-medium text-gray-600">Details</h4>
+                {project.details ? (
+                  <div
+                    className="line-clamp-4"
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(project.details),
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 text-sm italic text-gray-400">
+                    <FilePlus2 size={14} />
+                    <span>No details provided.</span>
+                  </div>
+                )}
               </div>
 
-              <div className="absolute bottom-4 right-4 flex gap-2">
+              {/* Summary */}
+              <div className="mt-3 rounded border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm">
+                <h4 className="mb-1 font-medium text-indigo-600">AI Summary</h4>
+                {project.summary ? (
+                  <p className="text-indigo-700">{project.summary}</p>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs italic text-indigo-400">
+                    <FilePlus2 size={12} />
+                    <span>No summary available.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
                 <button
                   onClick={() => router.push(`tasks/${project.id}`)}
-                  className="flex items-center gap-1 rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
+                  className="inline-flex items-center gap-1 rounded bg-green-500 px-3 py-1.5 text-sm text-white hover:bg-green-600"
                 >
                   <ClipboardList size={16} />
                   Tasks
                 </button>
                 <button
                   onClick={() => openDrawerForEdit(project)}
-                  className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
+                  className="inline-flex items-center gap-1 rounded bg-yellow-400 px-3 py-1.5 text-sm text-gray-800 hover:bg-yellow-500"
                 >
                   <Edit2 size={16} />
                   Edit
@@ -181,7 +246,7 @@ export default function ProjectsPage() {
                     setProjectToDelete(project.id);
                     setDeleteDialogOpen(true);
                   }}
-                  className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+                  className="inline-flex items-center gap-1 rounded bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
                 >
                   <Trash2 size={16} />
                   Delete
@@ -238,6 +303,53 @@ export default function ProjectsPage() {
                   placeholder="Enter project name"
                 />
               </div>
+              {/* 
+              <div>
+                <label className="block text-sm font-medium">Details</label>
+                <ReactQuill
+                  theme="snow"
+                  value={details}
+                  onChange={setDetails}
+                  className="mt-1"
+                  modules={{
+                    toolbar: [
+                      [{ header: [1, 2, 3, 4, 5, 6, false] }],
+                      [{ font: [] }],
+                      [{ size: [] }],
+                      ["bold", "italic", "underline", "strike"],
+                      [{ script: "sub" }, { script: "super" }],
+                      [{ color: [] }, { background: [] }],
+                      [{ align: [] }],
+                      ["blockquote", "code-block"],
+                      [{ list: "ordered" }, { list: "bullet" }],
+                      [{ indent: "-1" }, { indent: "+1" }],
+                      ["link", "image", "video"],
+                      ["clean"], // remove formatting
+                    ],
+                  }}
+                  formats={[
+                    "header",
+                    "font",
+                    "size",
+                    "bold",
+                    "italic",
+                    "underline",
+                    "strike",
+                    "script",
+                    "color",
+                    "background",
+                    "align",
+                    "blockquote",
+                    "code-block",
+                    "list",
+                    "bullet",
+                    "indent",
+                    "link",
+                    "image",
+                    "video",
+                  ]}
+                />
+              </div> */}
 
               <div>
                 <label className="block text-sm font-medium">Details</label>
@@ -284,6 +396,40 @@ export default function ProjectsPage() {
                     "video",
                   ]}
                 />
+                {/* <button
+                  onClick={handleGenerateSummary}
+                  disabled={generateSummary.isPending}
+                  className="mt-2 rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {generateSummary.isPending
+                    ? "Generating..."
+                    : "Generate Summary"}
+                </button> */}
+
+                <button
+                  onClick={handleGenerateSummary}
+                  disabled={generateSummary.isPending}
+                  className="mt-2 flex items-center justify-center gap-2 rounded bg-indigo-600 px-4 py-2 text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  <span className="relative flex items-center gap-1">
+                    {/* Sparkle animation */}
+                    <Sparkles
+                      className={`h-6 w-6 animate-pulse text-yellow-300 ${
+                        generateSummary.isPending ? "opacity-100" : "opacity-80"
+                      }`}
+                    />
+                    {generateSummary.isPending
+                      ? "Generating AI Summary..."
+                      : "Generate AI Summary"}
+                  </span>
+                </button>
+
+                {summary && (
+                  <div className="mt-3 rounded border border-gray-300 bg-gray-50 p-3 text-gray-800">
+                    <strong>Summary:</strong>
+                    <p>{summary}</p>
+                  </div>
+                )}
               </div>
 
               <div>

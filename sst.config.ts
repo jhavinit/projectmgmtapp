@@ -16,6 +16,7 @@ export default $config({
         NEXTAUTH_URL: "",
         NEXTAUTH_SECRET: "",
         DATABASE_URL: "",
+        HUGGING_FACE_API_KEY: "",
       },
     });
   },
