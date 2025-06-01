@@ -21,6 +21,8 @@ import {
   User,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
@@ -31,6 +33,7 @@ import { useRouter } from "next/router";
 import Loading from "~/components/Loading";
 import { BackButton } from "~/components/BackButton";
 import { Breadcrumbs } from "~/components/Breadcrumbs";
+import { useDebounce } from "use-debounce"; // Add this at the top (install with: npm i use-debounce)
 
 // Icon helper for type
 function TaskTypeIcon({ type }: { type: TaskType }) {
@@ -72,11 +75,32 @@ export default function TasksPage() {
     "LOW" | "MEDIUM" | "HIGH" | "ALL"
   >("ALL");
 
+  // Add status filter state
+  const [filterStatus, setFilterStatus] = useState<TaskStatus | "ALL">("ALL");
+
   const router = useRouter();
   const projectId = router.query.id as string;
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODO);
 
-  const { data: tasks, isLoading } = api.task.getAll.useQuery({ projectId });
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  // Search state
+  const [search, setSearch] = useState("");
+  const [debouncedSearch] = useDebounce(search, 400); // Debounce for better UX
+
+  const { data: tasksData, isLoading } = api.task.getAll.useQuery({
+    projectId,
+    page: currentPage,
+    limit: ITEMS_PER_PAGE,
+    type: filterType,
+    priority: filterPriority,
+    status: filterStatus, // <-- pass status to backend
+    search: debouncedSearch,
+  });
+
+  const tasks = tasksData?.tasks ?? [];
+  const totalPages = tasksData?.totalPages ?? 1;
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -183,6 +207,16 @@ export default function TasksPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold">Tasks</h1>
         <div className="flex gap-3">
+          {/* Search Bar */}
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm"
+            style={{ minWidth: 200 }}
+          />
+
           <button
             onClick={() => setViewMode("grid")}
             title="Grid View"
@@ -216,162 +250,85 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {/* Filters - Always visible */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {/* Filter by Type */}
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-medium">Type:</span>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as TaskType | "ALL")}
+            className="rounded border px-2 py-1 text-sm"
+          >
+            <option value="ALL">All</option>
+            <option value="FEATURE">Feature</option>
+            <option value="BUG">Bug</option>
+            <option value="IMPROVEMENT">Improvement</option>
+          </select>
+        </div>
+
+        {/* Filter by Priority */}
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-medium">Priority:</span>
+          <select
+            value={filterPriority}
+            onChange={(e) =>
+              setFilterPriority(e.target.value as typeof filterPriority)
+            }
+            className="rounded border px-2 py-1 text-sm"
+          >
+            <option value="ALL">All</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+        </div>
+
+        {/* Filter by Status */}
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-medium">Status:</span>
+          <select
+            value={filterStatus}
+            onChange={(e) =>
+              setFilterStatus(e.target.value as TaskStatus | "ALL")
+            }
+            className="rounded border px-2 py-1 text-sm"
+          >
+            <option value="ALL">All</option>
+            <option value="TODO">To Do</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="DONE">Done</option>
+          </select>
+        </div>
+      </div>
+
       {isLoading ? (
         <Loading />
-      ) : tasks && tasks.length > 0 ? (
-        viewMode === "grid" ? (
-          <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {tasks.map((task) => (
-              <li
-                key={task.id}
-                className="relative flex h-64 flex-col overflow-hidden rounded-lg border border-gray-300 bg-white p-6 shadow-md hover:shadow-lg"
-              >
-                {/* Icon */}
-                <div className="absolute left-4 top-4 rounded bg-blue-700 p-2 text-white shadow">
-                  <TaskTypeIcon type={task.type} />
-                </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Task List */}
+          {tasks.length > 0 ? (
+            <div className="space-y-6">
+              {viewMode === "grid" ? (
+                <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {tasks.map((task) => (
+                    <li
+                      key={task.id}
+                      className="relative flex h-64 flex-col overflow-hidden rounded-lg border border-gray-300 bg-white p-6 shadow-md hover:shadow-lg"
+                    >
+                      {/* Icon */}
+                      <div className="absolute left-4 top-4 rounded bg-blue-700 p-2 text-white shadow">
+                        <TaskTypeIcon type={task.type} />
+                      </div>
 
-                {/* Title */}
-                <h3
-                  className="mb-2 ml-10 truncate text-xl font-semibold"
-                  title={task.title}
-                >
-                  {task.title}
-                  <span
-                    className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      task.status === "TODO"
-                        ? "bg-gray-200 text-gray-700"
-                        : task.status === "IN_PROGRESS"
-                          ? "bg-yellow-200 text-yellow-800"
-                          : task.status === "DONE"
-                            ? "bg-green-200 text-green-800"
-                            : "bg-gray-100 text-gray-500"
-                    } `}
-                  >
-                    {task.status}
-                  </span>
-                </h3>
-
-                {/* Description (line-clamp-3 already present) */}
-                <p className="mb-1 ml-10 line-clamp-3 flex-grow overflow-hidden text-sm text-gray-600">
-                  {task.description}
-                </p>
-
-                {/* Metadata */}
-                <div className="ml-10 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                  <div className="flex items-center gap-1 truncate">
-                    <Clock size={14} />
-                    Deadline: {new Date(task.deadline).toLocaleDateString()}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <PriorityIcon priority={task.priority} />
-                    <span className="font-semibold">{task.priority}</span>
-                  </div>
-                  <div className="flex items-center gap-1 truncate">
-                    <User size={14} />
-                    {users?.find((u) => u.id === task.assignedToId)?.name ??
-                      "Unassigned"}
-                  </div>
-                </div>
-
-                {/* Tags */}
-                {task.tags && task.tags.length > 0 && (
-                  <div className="ml-10 mt-3 flex max-h-12 flex-wrap gap-2 overflow-y-auto pr-1">
-                    {task.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex max-w-[6rem] items-center truncate rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
-                        title={tag}
+                      {/* Title */}
+                      <h3
+                        className="mb-2 ml-10 truncate text-xl font-semibold"
+                        title={task.title}
                       >
-                        <Tag size={12} className="mr-1" />
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Buttons */}
-                <div className="ml-10 mt-5 mt-auto flex justify-end gap-2">
-                  <button
-                    onClick={() => openDrawerForEdit(task)}
-                    className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
-                    title="Edit Task"
-                  >
-                    <Edit2 size={16} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTaskToDelete(task.id);
-                      setDeleteDialogOpen(true);
-                    }}
-                    className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
-                    title="Delete Task"
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          // List view
-
-          <>
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-              {/* Filter by Type */}
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-medium">Type:</span>
-                <select
-                  value={filterType}
-                  onChange={(e) =>
-                    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-                    setFilterType(e.target.value as TaskType | "ALL")
-                  }
-                  className="rounded border px-2 py-1 text-sm"
-                >
-                  <option value="ALL">All</option>
-                  <option value="FEATURE">Feature</option>
-                  <option value="BUG">Bug</option>
-                  <option value="IMPROVEMENT">Improvement</option>
-                </select>
-              </div>
-
-              {/* Filter by Priority */}
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-medium">Priority:</span>
-                <select
-                  value={filterPriority}
-                  onChange={(e) =>
-                    setFilterPriority(e.target.value as typeof filterPriority)
-                  }
-                  className="rounded border px-2 py-1 text-sm"
-                >
-                  <option value="ALL">All</option>
-                  <option value="HIGH">High</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="LOW">Low</option>
-                </select>
-              </div>
-            </div>
-
-            <ul className="flex flex-col divide-y divide-gray-300 rounded bg-white shadow">
-              {tasks.map((task) => (
-                <li
-                  key={task.id}
-                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50"
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="rounded bg-blue-700 p-2 text-white shadow">
-                      <TaskTypeIcon type={task.type} />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="flex items-center gap-2 truncate text-lg font-semibold">
                         {task.title}
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${
                             task.status === "TODO"
                               ? "bg-gray-200 text-gray-700"
                               : task.status === "IN_PROGRESS"
@@ -385,65 +342,190 @@ export default function TasksPage() {
                         </span>
                       </h3>
 
-                      <p className="truncate text-sm text-gray-600">
+                      {/* Description (line-clamp-3 already present) */}
+                      <p className="mb-1 ml-10 line-clamp-3 flex-grow overflow-hidden text-sm text-gray-600">
                         {task.description}
                       </p>
 
-                      <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
+                      {/* Metadata */}
+                      <div className="mb-2 ml-10 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                        <div className="flex items-center gap-1 truncate">
                           <Clock size={14} />
+                          Deadline:{" "}
                           {new Date(task.deadline).toLocaleDateString()}
                         </div>
                         <div className="flex items-center gap-1">
                           <PriorityIcon priority={task.priority} />
-                          {task.priority}
+                          <span className="font-semibold">{task.priority}</span>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 truncate">
                           <User size={14} />
                           {users?.find((u) => u.id === task.assignedToId)
                             ?.name ?? "Unassigned"}
                         </div>
-                        {task.tags?.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
-                          >
-                            <Tag size={12} className="mr-1" />
-                            {tag}
-                          </span>
-                        ))}
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openDrawerForEdit(task)}
-                      className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
-                      title="Edit Task"
+                      {/* Tags */}
+                      {task.tags && task.tags.length > 0 && (
+                        <div className="ml-10 mt-3 flex max-h-12 flex-wrap gap-2 overflow-y-auto pr-1">
+                          {task.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-flex max-w-[6rem] items-center truncate rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                              title={tag}
+                            >
+                              <Tag size={12} className="mr-1" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Buttons */}
+                      <div className="ml-10 mt-5 mt-auto flex justify-end gap-2">
+                        <button
+                          onClick={() => openDrawerForEdit(task)}
+                          className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
+                          title="Edit Task"
+                        >
+                          <Edit2 size={16} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTaskToDelete(task.id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+                          title="Delete Task"
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                // List view
+
+                <ul className="flex flex-col divide-y divide-gray-300 rounded bg-white shadow">
+                  {tasks.map((task) => (
+                    <li
+                      key={task.id}
+                      className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50"
                     >
-                      <Edit2 size={16} />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTaskToDelete(task.id);
-                        setDeleteDialogOpen(true);
-                      }}
-                      className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
-                      title="Delete Task"
-                    >
-                      <Trash2 size={16} />
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
-        )
-      ) : (
-        <NoDataFound />
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="rounded bg-blue-700 p-2 text-white shadow">
+                          <TaskTypeIcon type={task.type} />
+                        </div>
+
+                        <div className="min-w-0">
+                          <h3 className="flex items-center gap-2 truncate text-lg font-semibold">
+                            {task.title}
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                task.status === "TODO"
+                                  ? "bg-gray-200 text-gray-700"
+                                  : task.status === "IN_PROGRESS"
+                                    ? "bg-yellow-200 text-yellow-800"
+                                    : task.status === "DONE"
+                                      ? "bg-green-200 text-green-800"
+                                      : "bg-gray-100 text-gray-500"
+                              } `}
+                            >
+                              {task.status}
+                            </span>
+                          </h3>
+
+                          <p className="truncate text-sm text-gray-600">
+                            {task.description}
+                          </p>
+
+                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <Clock size={14} />
+                              {new Date(task.deadline).toLocaleDateString()}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <PriorityIcon priority={task.priority} />
+                              {task.priority}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <User size={14} />
+                              {users?.find((u) => u.id === task.assignedToId)
+                                ?.name ?? "Unassigned"}
+                            </div>
+                            {task.tags?.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                              >
+                                <Tag size={12} className="mr-1" />
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openDrawerForEdit(task)}
+                          className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
+                          title="Edit Task"
+                        >
+                          <Edit2 size={16} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTaskToDelete(task.id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+                          title="Delete Task"
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Pagination Controls - Only show when there are tasks */}
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
+                >
+                  <ChevronLeft size={16} />
+                  Previous
+                </button>
+                <span className="text-sm text-gray-600">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                  }
+                  disabled={currentPage === totalPages}
+                  className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <NoDataFound />
+          )}
+        </div>
       )}
 
       {/* Drawer for create/edit */}

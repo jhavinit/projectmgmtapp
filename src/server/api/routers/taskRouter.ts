@@ -20,20 +20,94 @@ export const taskRouter = createTRPCRouter({
       });
     }),
   getAll: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(({ ctx, input }) => {
-      const userId = ctx.session.user.id;
-      return ctx.db.task.findMany({
-        where: {
-          projectId: input.projectId,
-          OR: [{ assignedToId: userId }, { createdById: userId }],
-        },
-        include: {
-          assignedTo: true,
-          createdBy: true,
-        },
-        orderBy: { createdAt: "desc" },
-      });
+    .input(
+      z.object({
+        projectId: z.string(),
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(50).default(10),
+        type: z
+          .enum(["ALL", "BUG", "FEATURE", "IMPROVEMENT", "TASK"])
+          .optional(),
+        priority: z.enum(["ALL", "LOW", "MEDIUM", "HIGH"]).optional(),
+        status: z.enum(["ALL", "TODO", "IN_PROGRESS", "DONE"]).optional(), // <-- add status
+        skipPagination: z.boolean().optional(),
+        search: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { search } = input;
+
+      // Build user filter
+      const userFilter = [
+        { assignedToId: ctx.session.user.id },
+        { createdById: ctx.session.user.id },
+      ];
+
+      // Build search filter
+      let searchFilter = {};
+      if (search && search.trim() !== "") {
+        searchFilter = {
+          OR: [
+            { title: { contains: search, mode: "insensitive" } },
+            { description: { contains: search, mode: "insensitive" } },
+            { tags: { has: search } },
+          ],
+        };
+      }
+
+      // Combine filters: projectId, type, priority, and user/search logic
+      const where = {
+        projectId: input.projectId,
+        ...(input.type && input.type !== "ALL" ? { type: input.type } : {}),
+        ...(input.priority && input.priority !== "ALL"
+          ? { priority: input.priority }
+          : {}),
+        ...(input.status && input.status !== "ALL"
+          ? { status: input.status }
+          : {}),
+        AND: [
+          {
+            OR: userFilter,
+          },
+          ...(search && search.trim() !== "" ? [searchFilter] : []),
+        ],
+      };
+
+      console.log("where", where)
+
+      // If skipPagination is true, return all tasks without pagination
+      if (input.skipPagination) {
+        const tasks = await ctx.db.task.findMany({
+          where,
+          include: {
+            assignedTo: true,
+            createdBy: true,
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        return { tasks, totalPages: 1, currentPage: 1 };
+      }
+
+      const skip = (input.page - 1) * input.limit;
+      const [tasks, totalCount] = await Promise.all([
+        ctx.db.task.findMany({
+          where,
+          skip,
+          take: input.limit,
+          include: {
+            assignedTo: true,
+            createdBy: true,
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        ctx.db.task.count({ where }),
+      ]);
+
+      return {
+        tasks,
+        totalPages: Math.ceil(totalCount / input.limit),
+        currentPage: input.page,
+      };
     }),
 
   create: protectedProcedure

@@ -30,13 +30,15 @@ export default function GanttDashboard() {
   }, [projects, selectedProject]);
 
   const {
-    data: tasks = [],
+    data: tasksData,
     isFetching,
     refetch,
   } = api.task.getAll.useQuery(
-    { projectId: selectedProject ?? "" },
+    { projectId: selectedProject ?? "", skipPagination: true },
     { enabled: !!selectedProject },
   );
+
+  const tasks = tasksData?.tasks ?? [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formatTasks = (tasks: any[]): Task[] =>

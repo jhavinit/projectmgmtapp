@@ -37,13 +37,15 @@ export default function KanbanBoard() {
   }, [projects, selectedProject]);
 
   const {
-    data: tasks = [],
+    data: tasksData,
     refetch,
     isFetching,
   } = api.task.getAll.useQuery(
-    { projectId: selectedProject ?? "" },
+    { projectId: selectedProject ?? "", skipPagination: true },
     { enabled: !!selectedProject },
   );
+
+  const tasks = tasksData?.tasks ?? [];
 
   const updateStatus = api.task.updateStatus.useMutation({
     onSuccess: () => refetch(),

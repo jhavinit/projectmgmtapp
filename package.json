@@ -38,6 +38,7 @@
     "react-hot-toast": "^2.5.2",
     "react-quill": "^2.0.0",
     "superjson": "^2.2.1",
+    "use-debounce": "^10.0.4",
     "zod": "^3.23.3"
   },
   "devDependencies": {
