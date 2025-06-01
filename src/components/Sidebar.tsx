@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { Folder, LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { Folder, LogOut, LayoutDashboard, User } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { LayoutDashboard } from "lucide-react";
-import { CheckSquare } from "lucide-react";
 
 export default function Sidebar() {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { data: session } = useSession(); // Get user session
 
   const handleLogout = () => {
     setConfirmOpen(true);
@@ -41,20 +40,16 @@ export default function Sidebar() {
               <span>Projects</span>
             </Link>
           </li>
-
-          <li>
-            <Link
-              href="/tasks"
-              className="flex items-center gap-2 rounded px-3 py-2 hover:bg-gray-700 focus:bg-gray-700 focus:outline-none"
-            >
-              <CheckSquare size={18} />
-              <span>Tasks</span>
-            </Link>
-          </li>
         </ul>
 
-        {/* Logout fixed at bottom */}
-        <div>
+        <div className="mt-4 space-y-4 border-t border-gray-700">
+          {/* User Info */}
+          <div className="ml-2 flex items-center gap-3 pt-4 text-gray-300">
+            <User size={20} className="flex-shrink-0" />
+            <span className="truncate">{session?.user?.name ?? "User"}</span>
+          </div>
+
+          {/* Logout Button */}
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-2 rounded px-3 py-2 text-left transition-colors duration-200 hover:bg-red-700 focus:bg-red-700 focus:outline-none"

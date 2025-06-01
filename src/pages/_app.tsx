@@ -9,6 +9,8 @@ import { useRouter } from "next/router";
 import type { ReactNode } from "react";
 import Layout from "../components/Layout";
 import { AnimatePresence, motion } from "framer-motion";
+import Loading from "~/components/Loading";
+import { Breadcrumbs } from "~/components/Breadcrumbs";
 
 const publicRoutes = ["/", "/login", "/register", "/404"];
 
@@ -18,12 +20,7 @@ const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   const isPublic = publicRoutes.includes(router.pathname);
 
-  if (status === "loading")
-    return (
-      <div className="flex h-screen items-center justify-center">
-        Loading...
-      </div>
-    );
+  if (status === "loading") return <Loading />;
 
   if (!session && !isPublic) {
     if (typeof window !== "undefined") void router.push("/login");
@@ -56,6 +53,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
                 transition={{ duration: 0.2 }}
               >
                 <Layout>
+                  <Breadcrumbs />
                   <Component {...pageProps} />
                 </Layout>
               </motion.div>

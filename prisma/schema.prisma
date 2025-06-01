@@ -1,128 +1,98 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Prisma schema for project management application
+// Learn more: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider = "prisma-client-js"
-    binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-    provider = "postgresql"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Loaded from .env
 }
 
-// model Post {
-//     id        Int      @id @default(autoincrement())
-//     name      String
-//     createdAt DateTime @default(now())
-//     updatedAt DateTime @updatedAt
-
-//     createdBy   User   @relation(fields: [createdById], references: [id])
-//     createdById String
-
-//     @@index([name])
-// }
-
-// Necessary for Next auth
-// model Account {
-//     id                       String  @id @default(cuid())
-//     userId                   String
-//     type                     String
-//     provider                 String
-//     providerAccountId        String
-//     refresh_token            String? // @db.Text
-//     access_token             String? // @db.Text
-//     expires_at               Int?
-//     token_type               String?
-//     scope                    String?
-//     id_token                 String? // @db.Text
-//     session_state            String?
-//     user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-//     refresh_token_expires_in Int?
-
-//     @@unique([provider, providerAccountId])
-// }
-
-
-// model VerificationToken {
-//     identifier String
-//     token      String   @unique
-//     expires    DateTime
-
-//     @@unique([identifier, token])
-// }
-
-// model Session {
-//     id           String   @id @default(cuid())
-//     sessionToken String   @unique
-//     userId       String
-//     expires      DateTime
-//     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-// }
-
+///////////////////////////////////////////////////////
+// USER MODEL
+///////////////////////////////////////////////////////
 model User {
-    id            String    @id @default(cuid())
-    name          String
-    email         String   @unique
-    password      String
+  id               String               @id @default(cuid())
+  name             String
+  email            String              @unique
+  password         String
 
-    projects  Project[]
-
-    tasksAssigned  Task[] @relation("AssignedTasks")
-    tasksCreated   Task[] @relation("CreatedTasks")
-
-    // emailVerified DateTime?
-    // image         String?
-    // accounts      Account[]
-    // sessions      Session[]
-    // posts         Post[]
-
-    // preferences   Json?
-
-    // teams         TeamMember[]
-    // tasksAssigned Task[]   @relation("AssignedTasks")
-    // tasksCreated  Task[]   @relation("CreatedTasks")
+  // Relations
+  projectAssignments ProjectAssignment[]
+  tasksAssigned      Task[]             @relation("AssignedTasks")
+  tasksCreated       Task[]             @relation("CreatedTasks")
 }
 
+///////////////////////////////////////////////////////
+// PROJECT MODEL
+///////////////////////////////////////////////////////
 model Project {
-  id     String   @id @default(cuid())
-  name   String
-  details String
-  user   User     @relation(fields: [userId], references: [id])
-  userId String
-  createdAt DateTime @default(now())
+  id                 String              @id @default(cuid())
+  name               String
+  details            String
+  createdAt          DateTime            @default(now())
 
-  tasks     Task[]   // ✅ This is the missing back-relation
+  // Relations
+  projectAssignments ProjectAssignment[]
+  tasks              Task[]
 }
 
+///////////////////////////////////////////////////////
+// PROJECT ASSIGNMENT MODEL (Join table between User and Project)
+///////////////////////////////////////////////////////
+model ProjectAssignment {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+  role       String?
+}
+
+///////////////////////////////////////////////////////
+// TASK MODEL
+///////////////////////////////////////////////////////
 model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  status      TaskStatus @default(TODO)
-  priority    TaskPriority @default(MEDIUM)
-  deadline    DateTime
-  tags        String[]   // array of strings
+  id            String       @id @default(cuid())
+  title         String
+  description   String
+  status        TaskStatus   @default(TODO)
+  priority      TaskPriority @default(MEDIUM)
+  deadline      DateTime
+  tags          String[]     // Array of tag strings
+  type          TaskType     @default(TASK)
 
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id])
+  // Project relationship
+  projectId     String
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  createdById String
-  createdBy   User       @relation("CreatedTasks", fields: [createdById], references: [id])
+  // Created by user
+  createdById   String
+  createdBy     User         @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: Cascade)
 
-  assignedToId String?
-  assignedTo   User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  // Assigned to user (optional)
+  assignedToId  String?
+  assignedTo    User?        @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
+///////////////////////////////////////////////////////
+// ENUMS
+///////////////////////////////////////////////////////
+enum TaskType {
+  BUG
+  FEATURE
+  IMPROVEMENT
+  TASK
+}
 
 enum TaskStatus {
   TODO
@@ -135,3 +105,52 @@ enum TaskPriority {
   MEDIUM
   HIGH
 }
+
+///////////////////////////////////////////////////////
+// MODELS FOR NEXT-AUTH (optional, uncomment if used)
+///////////////////////////////////////////////////////
+
+// model Account {
+//   id                        String   @id @default(cuid())
+//   userId                    String
+//   type                      String
+//   provider                  String
+//   providerAccountId         String
+//   refresh_token             String?  // @db.Text
+//   access_token              String?  // @db.Text
+//   expires_at                Int?
+//   token_type                String?
+//   scope                     String?
+//   id_token                  String?  // @db.Text
+//   session_state             String?
+//   refresh_token_expires_in  Int?
+//   user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   @@unique([provider, providerAccountId])
+// }
+
+// model Session {
+//   id           String   @id @default(cuid())
+//   sessionToken String   @unique
+//   userId       String
+//   expires      DateTime
+//   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// }
+
+// model VerificationToken {
+//   identifier String
+//   token      String   @unique
+//   expires    DateTime
+//   @@unique([identifier, token])
+// }
+
+///////////////////////////////////////////////////////
+// OPTIONAL: Sample Post model (can be used for blog, etc.)
+// model Post {
+//   id          Int      @id @default(autoincrement())
+//   name        String
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+//   createdById String
+//   createdBy   User     @relation(fields: [createdById], references: [id])
+//   @@index([name])
+// }

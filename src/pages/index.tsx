@@ -1,6 +1,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import Loading from "~/components/Loading";
 
 export default function IndexPage() {
   const { data: session, status } = useSession();
@@ -15,19 +16,5 @@ export default function IndexPage() {
     }
   }, [session, status, router]);
 
-  return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        fontSize: "1.25rem",
-        fontWeight: "500",
-        color: "#555",
-      }}
-    >
-      Loading...
-    </div>
-  );
+  return <Loading />;
 }

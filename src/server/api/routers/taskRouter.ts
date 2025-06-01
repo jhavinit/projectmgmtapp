@@ -6,6 +6,19 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
 export const taskRouter = createTRPCRouter({
+  updateStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        status: z.enum(["TODO", "IN_PROGRESS", "DONE"]),
+      }),
+    )
+    .mutation(({ ctx, input }) => {
+      return ctx.db.task.update({
+        where: { id: input.id },
+        data: { status: input.status },
+      });
+    }),
   getAll: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(({ ctx, input }) => {
@@ -33,6 +46,8 @@ export const taskRouter = createTRPCRouter({
         tags: z.array(z.string()),
         projectId: z.string(),
         assignedToId: z.string().optional(),
+        status: z.enum(["TODO", "IN_PROGRESS", "DONE"]),
+        type: z.enum(["BUG", "FEATURE", "IMPROVEMENT", "TASK"]),
       }),
     )
     .mutation(({ ctx, input }) => {
@@ -46,6 +61,8 @@ export const taskRouter = createTRPCRouter({
           projectId: input.projectId,
           assignedToId: input.assignedToId,
           createdById: ctx.session.user.id,
+          status: input.status,
+          type: input.type,
         },
       });
     }),
@@ -61,6 +78,7 @@ export const taskRouter = createTRPCRouter({
         priority: z.enum(["LOW", "MEDIUM", "HIGH"]),
         tags: z.array(z.string()),
         assignedToId: z.string().optional(),
+        type: z.enum(["BUG", "FEATURE", "IMPROVEMENT", "TASK"]),
       }),
     )
     .mutation(({ ctx, input }) => {
@@ -74,6 +92,7 @@ export const taskRouter = createTRPCRouter({
           priority: input.priority,
           tags: input.tags,
           assignedToId: input.assignedToId,
+          type: input.type,
         },
       });
     }),

@@ -3,22 +3,28 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { api } from "~/utils/api";
+import { useRouter } from "next/router"; // Add this at the top
 import { useState, useMemo } from "react";
-import { Plus, X, Edit2, Trash2, FilePlus2 } from "lucide-react";
+import { Plus, X, Edit2, Trash2, FilePlus2, ClipboardList } from "lucide-react";
 import { useSession } from "next-auth/react";
-import type { Project } from "@prisma/client";
+import type { Project, User, ProjectAssignment } from "@prisma/client";
 import ConfirmDialog from "~/components/ConfirmDialog";
 import toast from "react-hot-toast";
 import NoDataFound from "~/components/NoDataFound";
 import "react-quill/dist/quill.snow.css";
 import dynamic from "next/dynamic";
 import DOMPurify from "dompurify";
+import Loading from "~/components/Loading";
 
 export default function ProjectsPage() {
   const ReactQuill = useMemo(
     () => dynamic(() => import("react-quill"), { ssr: false }),
     [],
   );
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const { data: users = [] } = api.user.getAll.useQuery();
+
+  const router = useRouter();
 
   const { data: session } = useSession();
   const utils = api.useContext();
@@ -44,12 +50,23 @@ export default function ProjectsPage() {
     setDrawerOpen(true);
   };
 
-  const openDrawerForEdit = (project: Project) => {
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  type ProjectWithAssignments = Project & {
+    projectAssignments: Pick<ProjectAssignment, "userId">[];
+  };
+
+  const openDrawerForEdit = (project: ProjectWithAssignments) => {
     setName(project.name);
     setDetails(project.details);
     setProjectId(project.id);
     setIsEditMode(true);
     setDrawerOpen(true);
+    setSelectedUserIds(
+      project.projectAssignments.map(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        (assignment: Pick<ProjectAssignment, "userId">) => assignment.userId,
+      ),
+    );
   };
 
   const handleDeleteConfirm = () => {
@@ -95,9 +112,14 @@ export default function ProjectsPage() {
 
   const handleFormSubmit = () => {
     if (isEditMode && projectId) {
-      editProject.mutate({ id: projectId, name, details });
+      editProject.mutate({
+        id: projectId,
+        name,
+        details,
+        userIds: selectedUserIds,
+      });
     } else {
-      createProject.mutate({ name, details });
+      createProject.mutate({ name, details, userIds: selectedUserIds });
     }
   };
 
@@ -115,7 +137,7 @@ export default function ProjectsPage() {
       </div>
 
       {isLoading ? (
-        <p>Loading...</p>
+        <Loading />
       ) : projects && projects.length > 0 ? (
         <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
@@ -140,6 +162,13 @@ export default function ProjectsPage() {
               </div>
 
               <div className="absolute bottom-4 right-4 flex gap-2">
+                <button
+                  onClick={() => router.push(`tasks/${project.id}`)}
+                  className="flex items-center gap-1 rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600"
+                >
+                  <ClipboardList size={16} />
+                  Tasks
+                </button>
                 <button
                   onClick={() => openDrawerForEdit(project)}
                   className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
@@ -254,8 +283,68 @@ export default function ProjectsPage() {
                     "image",
                     "video",
                   ]}
-                  style={{ height: "200px" }}
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Assign Users
+                </label>
+
+                {/* Selected Chips */}
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {selectedUserIds.map((id) => {
+                    const user = users.find((u) => u.id === id);
+                    if (!user) return null;
+                    return (
+                      <span
+                        key={id}
+                        className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
+                      >
+                        {user.name}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedUserIds((prev) =>
+                              prev.filter((uid) => uid !== id),
+                            )
+                          }
+                        >
+                          <X size={14} />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* User List */}
+                <div className="max-h-48 overflow-y-auto rounded border p-2">
+                  {users.map((user) => {
+                    const isSelected = selectedUserIds.includes(user.id);
+                    return (
+                      <div
+                        key={user.id}
+                        onClick={() => {
+                          setSelectedUserIds((prev) =>
+                            isSelected
+                              ? prev.filter((id) => id !== user.id)
+                              : [...prev, user.id],
+                          );
+                        }}
+                        className={`cursor-pointer rounded px-2 py-1 hover:bg-gray-100 ${
+                          isSelected
+                            ? "bg-blue-50 font-medium text-blue-700"
+                            : ""
+                        }`}
+                      >
+                        {user.name}{" "}
+                        <span className="text-xs text-gray-500">
+                          ({user.email})
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
