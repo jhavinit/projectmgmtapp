@@ -47,8 +47,6 @@ import { env } from "process";
 //   }
 // }
 
-// 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
-
 export async function summarizeWithHuggingFace(text: string) {
   try {
     const response = await fetch(

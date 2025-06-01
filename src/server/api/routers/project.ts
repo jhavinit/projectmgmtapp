@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 // import { getProjectSummary } from "~/server/utils/openai";
-import { summarizeWithHuggingFace } from "~/server/utils/openai";
+import { summarizeWithHuggingFace } from "~/server/utils/ai-summary-service";
 
 export const projectRouter = createTRPCRouter({
   // // Get all projects assigned to current user
