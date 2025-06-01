@@ -1,10 +1,5 @@
-/* eslint-disable @typescript-eslint/prefer-optional-chain */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { api } from "~/utils/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Edit2,
@@ -23,19 +18,25 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  ListChecks,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import ConfirmDialog from "~/components/ConfirmDialog";
 import NoDataFound from "~/components/NoDataFound";
-import { TaskStatus, TaskType, type Task } from "@prisma/client";
+// import { TaskStatus, TaskType, type Task } from "@prisma/client";
+import type { Task } from "@prisma/client";
+import { TaskStatus, TaskType, TaskPriority } from "~/shared/task-constants";
+
 import { useRouter } from "next/router";
 import Loading from "~/components/Loading";
 import { BackButton } from "~/components/BackButton";
-import { Breadcrumbs } from "~/components/Breadcrumbs";
-import { useDebounce } from "use-debounce"; // Add this at the top (install with: npm i use-debounce)
+import { useDebounce } from "use-debounce";
 
-// Icon helper for type
+/**
+ * Icon helper for task type.
+ * @param type - TaskType enum value.
+ */
 function TaskTypeIcon({ type }: { type: TaskType }) {
   switch (type) {
     case TaskType.BUG:
@@ -49,7 +50,10 @@ function TaskTypeIcon({ type }: { type: TaskType }) {
   }
 }
 
-// Icon helper for priority
+/**
+ * Icon helper for priority.
+ * @param priority - Task priority string.
+ */
 function PriorityIcon({ priority }: { priority: "LOW" | "MEDIUM" | "HIGH" }) {
   switch (priority) {
     case "HIGH":
@@ -63,80 +67,106 @@ function PriorityIcon({ priority }: { priority: "LOW" | "MEDIUM" | "HIGH" }) {
   }
 }
 
+/**
+ * TasksPage displays all tasks for a project,
+ * allows creation, editing, deletion, filtering, and pagination.
+ */
 export default function TasksPage() {
   const utils = api.useContext();
   const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
 
-  const { data: users } = api.user.getAll.useQuery(); // example api call to fetch users
+  const { data: users = [] } = api.user.getAll.useQuery();
 
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  // Filter states
   const [filterType, setFilterType] = useState<TaskType | "ALL">("ALL");
   const [filterPriority, setFilterPriority] = useState<
     "LOW" | "MEDIUM" | "HIGH" | "ALL"
   >("ALL");
-
-  // Add status filter state
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "ALL">("ALL");
 
+  // Router and project context
   const router = useRouter();
   const projectId = router.query.id as string;
+
+  // Task form states
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  // Set today's date as default for deadline
+  // const today = new Date().toISOString().slice(0, 10);
+  // const [deadline, setDeadline] = useState(today);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1); // Add 1 day
+  const defaultDeadline = tomorrow.toISOString().slice(0, 10); // Format: YYYY-MM-DD
+  const [deadline, setDeadline] = useState(defaultDeadline);
+
+  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH">("LOW");
+  const [tags, setTags] = useState<string[]>([]);
+  const [assignedToId, setAssignedToId] = useState<string | undefined>(
+    currentUserId,
+  );
+  const [type, setType] = useState<TaskType>(TaskType.FEATURE);
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODO);
 
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+
+  // Pagination and search
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
-
-  // Search state
   const [search, setSearch] = useState("");
-  const [debouncedSearch] = useDebounce(search, 400); // Debounce for better UX
+  const [debouncedSearch] = useDebounce(search, 400);
 
+  // View mode: grid or list
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Fetch tasks with filters, pagination, and search
   const { data: tasksData, isLoading } = api.task.getAll.useQuery({
     projectId,
     page: currentPage,
     limit: ITEMS_PER_PAGE,
-    type: filterType,
-    priority: filterPriority,
-    status: filterStatus, // <-- pass status to backend
+    type: filterType === "ALL" ? undefined : filterType,
+    priority:
+      filterPriority === "ALL" ? undefined : (filterPriority as TaskPriority),
+    status: filterStatus === "ALL" ? undefined : filterStatus,
     search: debouncedSearch,
   });
 
   const tasks = tasksData?.tasks ?? [];
   const totalPages = tasksData?.totalPages ?? 1;
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
-
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH">("LOW");
-  const [tags, setTags] = useState<string[]>([]);
-  const [assignedToId, setAssignedToId] = useState<string | undefined>();
-
-  const [type, setType] = useState<TaskType>(TaskType.FEATURE);
-
-  // View mode: grid or list
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-
+  /**
+   * Reset the task form state.
+   */
   const resetForm = () => {
     setTaskId(null);
     setTitle("");
     setDescription("");
-    setDeadline("");
+    setDeadline(defaultDeadline);
     setPriority("LOW");
     setTags([]);
-    setAssignedToId(undefined);
+    setAssignedToId(currentUserId); // <-- Default to logged-in user
     setIsEditMode(false);
     setType(TaskType.FEATURE);
+    setStatus(TaskStatus.TODO);
   };
 
+  /**
+   * Open the drawer for creating a new task.
+   */
   const openDrawerForCreate = () => {
     resetForm();
     setDrawerOpen(true);
   };
 
+  /**
+   * Open the drawer for editing an existing task.
+   * @param task - The task to edit.
+   */
   const openDrawerForEdit = (task: Task) => {
     setTaskId(task.id);
     setTitle(task.title);
@@ -147,10 +177,11 @@ export default function TasksPage() {
     setAssignedToId(task.assignedToId ?? undefined);
     setIsEditMode(true);
     setDrawerOpen(true);
-    setType(task.type);
-    setStatus(task.status);
+    setType(task.type as TaskType);
+    setStatus(task.status as TaskStatus);
   };
 
+  // Mutations for create, update, and delete
   const createTask = api.task.create.useMutation({
     onSuccess: async () => {
       await utils.task.getAll.invalidate();
@@ -177,12 +208,15 @@ export default function TasksPage() {
     onError: () => toast.error("Failed to delete task"),
   });
 
+  /**
+   * Handle create or update form submission.
+   */
   const handleFormSubmit = () => {
     const taskData = {
       title,
       description,
       deadline: new Date(deadline),
-      priority,
+      priority: priority as TaskPriority,
       tags,
       projectId,
       assignedToId,
@@ -201,48 +235,57 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50 p-6">
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <BackButton />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Tasks</h1>
+      {/* Header */}
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <ClipboardList size={36} className="text-blue-600" />
+          <h1 className="text-4xl font-extrabold tracking-tight text-blue-900">
+            Tasks
+          </h1>
+        </div>
         <div className="flex gap-3">
-          {/* Search Bar */}
           <input
             type="text"
             placeholder="Search tasks..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
-            style={{ minWidth: 200 }}
+            className="rounded-lg border border-blue-200 px-4 py-2 text-sm shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            style={{ minWidth: 220 }}
+            aria-label="Search tasks"
           />
-
           <button
             onClick={() => setViewMode("grid")}
             title="Grid View"
-            className={`rounded p-2 hover:bg-gray-200 ${
+            className={`rounded-lg p-2 shadow transition ${
               viewMode === "grid"
                 ? "bg-blue-600 text-white"
-                : "bg-white text-gray-700"
+                : "bg-white text-gray-700 hover:bg-blue-100"
             }`}
+            aria-label="Grid View"
+            aria-pressed={viewMode === "grid"}
           >
             <Grid size={20} />
           </button>
           <button
             onClick={() => setViewMode("list")}
             title="List View"
-            className={`rounded p-2 hover:bg-gray-200 ${
+            className={`rounded-lg p-2 shadow transition ${
               viewMode === "list"
                 ? "bg-blue-600 text-white"
-                : "bg-white text-gray-700"
+                : "bg-white text-gray-700 hover:bg-blue-100"
             }`}
+            aria-label="List View"
+            aria-pressed={viewMode === "list"}
           >
             <List size={20} />
           </button>
-
           <button
             onClick={openDrawerForCreate}
-            className="flex items-center gap-2 rounded bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-lg font-semibold text-white shadow transition hover:bg-blue-700"
+            aria-label="Create Task"
           >
             <Plus size={20} />
             Create Task
@@ -250,15 +293,16 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Filters - Always visible */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        {/* Filter by Type */}
-        <div className="flex items-center gap-1">
+      {/* Filters */}
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl bg-white/80 p-4 shadow">
+        <div className="flex items-center gap-2">
+          <Tag size={16} className="text-blue-400" />
           <span className="text-sm font-medium">Type:</span>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as TaskType | "ALL")}
-            className="rounded border px-2 py-1 text-sm"
+            className="rounded border border-blue-200 px-2 py-1 text-sm focus:border-blue-400"
+            aria-label="Filter by type"
           >
             <option value="ALL">All</option>
             <option value="FEATURE">Feature</option>
@@ -266,16 +310,16 @@ export default function TasksPage() {
             <option value="IMPROVEMENT">Improvement</option>
           </select>
         </div>
-
-        {/* Filter by Priority */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <Star size={16} className="text-yellow-400" />
           <span className="text-sm font-medium">Priority:</span>
           <select
             value={filterPriority}
             onChange={(e) =>
               setFilterPriority(e.target.value as typeof filterPriority)
             }
-            className="rounded border px-2 py-1 text-sm"
+            className="rounded border border-yellow-200 px-2 py-1 text-sm focus:border-yellow-400"
+            aria-label="Filter by priority"
           >
             <option value="ALL">All</option>
             <option value="HIGH">High</option>
@@ -283,16 +327,16 @@ export default function TasksPage() {
             <option value="LOW">Low</option>
           </select>
         </div>
-
-        {/* Filter by Status */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <ListChecks size={16} className="text-green-400" />
           <span className="text-sm font-medium">Status:</span>
           <select
             value={filterStatus}
             onChange={(e) =>
               setFilterStatus(e.target.value as TaskStatus | "ALL")
             }
-            className="rounded border px-2 py-1 text-sm"
+            className="rounded border border-green-200 px-2 py-1 text-sm focus:border-green-400"
+            aria-label="Filter by status"
           >
             <option value="ALL">All</option>
             <option value="TODO">To Do</option>
@@ -302,33 +346,32 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {/* Task List */}
       {isLoading ? (
         <Loading />
       ) : (
-        <div className="space-y-6">
-          {/* Task List */}
+        <div className="space-y-8">
           {tasks.length > 0 ? (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {viewMode === "grid" ? (
-                <ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <ul className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
                   {tasks.map((task) => (
                     <li
                       key={task.id}
-                      className="relative flex h-64 flex-col overflow-hidden rounded-lg border border-gray-300 bg-white p-6 shadow-md hover:shadow-lg"
+                      className="relative flex flex-col rounded-2xl border border-blue-100 bg-white p-6 shadow-lg transition hover:shadow-2xl"
                     >
                       {/* Icon */}
-                      <div className="absolute left-4 top-4 rounded bg-blue-700 p-2 text-white shadow">
-                        <TaskTypeIcon type={task.type} />
+                      <div className="absolute left-4 top-4 rounded-full bg-blue-700 p-2 text-white shadow">
+                        <TaskTypeIcon type={task.type as TaskType} />
                       </div>
-
                       {/* Title */}
                       <h3
-                        className="mb-2 ml-10 truncate text-xl font-semibold"
+                        className="mb-2 ml-12 truncate text-xl font-bold text-blue-900"
                         title={task.title}
                       >
                         {task.title}
                         <span
-                          className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${
+                          className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
                             task.status === "TODO"
                               ? "bg-gray-200 text-gray-700"
                               : task.status === "IN_PROGRESS"
@@ -341,14 +384,12 @@ export default function TasksPage() {
                           {task.status}
                         </span>
                       </h3>
-
-                      {/* Description (line-clamp-3 already present) */}
-                      <p className="mb-1 ml-10 line-clamp-3 flex-grow overflow-hidden text-sm text-gray-600">
+                      {/* Description */}
+                      <p className="mb-1 ml-12 line-clamp-3 flex-grow overflow-hidden text-sm text-gray-600">
                         {task.description}
                       </p>
-
                       {/* Metadata */}
-                      <div className="mb-2 ml-10 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                      <div className="mb-2 ml-12 flex flex-wrap items-center gap-3 text-xs text-gray-500">
                         <div className="flex items-center gap-1 truncate">
                           <Clock size={14} />
                           Deadline:{" "}
@@ -364,14 +405,13 @@ export default function TasksPage() {
                             ?.name ?? "Unassigned"}
                         </div>
                       </div>
-
                       {/* Tags */}
                       {task.tags && task.tags.length > 0 && (
-                        <div className="ml-10 mt-3 flex max-h-12 flex-wrap gap-2 overflow-y-auto pr-1">
+                        <div className="ml-12 mt-3 flex max-h-12 flex-wrap gap-2 overflow-y-auto pr-1">
                           {task.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="inline-flex max-w-[6rem] items-center truncate rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                              className="inline-flex max-w-[6rem] items-center truncate rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700"
                               title={tag}
                             >
                               <Tag size={12} className="mr-1" />
@@ -380,13 +420,13 @@ export default function TasksPage() {
                           ))}
                         </div>
                       )}
-
                       {/* Buttons */}
-                      <div className="ml-10 mt-5 mt-auto flex justify-end gap-2">
+                      <div className="ml-12 mt-5 mt-auto flex justify-end gap-2">
                         <button
                           onClick={() => openDrawerForEdit(task)}
-                          className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
+                          className="flex items-center gap-1 rounded-lg bg-yellow-400 px-4 py-1.5 text-sm font-semibold text-gray-800 transition hover:bg-yellow-500"
                           title="Edit Task"
+                          aria-label="Edit Task"
                         >
                           <Edit2 size={16} />
                           Edit
@@ -396,8 +436,9 @@ export default function TasksPage() {
                             setTaskToDelete(task.id);
                             setDeleteDialogOpen(true);
                           }}
-                          className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+                          className="flex items-center gap-1 rounded-lg bg-red-500 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-600"
                           title="Delete Task"
+                          aria-label="Delete Task"
                         >
                           <Trash2 size={16} />
                           Delete
@@ -408,23 +449,21 @@ export default function TasksPage() {
                 </ul>
               ) : (
                 // List view
-
-                <ul className="flex flex-col divide-y divide-gray-300 rounded bg-white shadow">
+                <ul className="flex flex-col divide-y divide-blue-100 rounded-2xl bg-white shadow-lg">
                   {tasks.map((task) => (
                     <li
                       key={task.id}
-                      className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50"
+                      className="flex items-center justify-between gap-4 px-8 py-5 transition hover:bg-blue-50"
                     >
                       <div className="flex min-w-0 items-center gap-4">
-                        <div className="rounded bg-blue-700 p-2 text-white shadow">
-                          <TaskTypeIcon type={task.type} />
+                        <div className="rounded-full bg-blue-700 p-2 text-white shadow">
+                          <TaskTypeIcon type={task.type as TaskType} />
                         </div>
-
                         <div className="min-w-0">
-                          <h3 className="flex items-center gap-2 truncate text-lg font-semibold">
+                          <h3 className="flex items-center gap-2 truncate text-lg font-bold text-blue-900">
                             {task.title}
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                                 task.status === "TODO"
                                   ? "bg-gray-200 text-gray-700"
                                   : task.status === "IN_PROGRESS"
@@ -437,11 +476,9 @@ export default function TasksPage() {
                               {task.status}
                             </span>
                           </h3>
-
                           <p className="truncate text-sm text-gray-600">
                             {task.description}
                           </p>
-
                           <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
                             <div className="flex items-center gap-1">
                               <Clock size={14} />
@@ -459,7 +496,7 @@ export default function TasksPage() {
                             {task.tags?.map((tag) => (
                               <span
                                 key={tag}
-                                className="inline-flex items-center rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                                className="inline-flex items-center rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700"
                               >
                                 <Tag size={12} className="mr-1" />
                                 {tag}
@@ -468,12 +505,12 @@ export default function TasksPage() {
                           </div>
                         </div>
                       </div>
-
                       <div className="flex gap-2">
                         <button
                           onClick={() => openDrawerForEdit(task)}
-                          className="flex items-center gap-1 rounded bg-yellow-400 px-3 py-1 text-sm text-gray-800 hover:bg-yellow-500"
+                          className="flex items-center gap-1 rounded-lg bg-yellow-400 px-4 py-1.5 text-sm font-semibold text-gray-800 transition hover:bg-yellow-500"
                           title="Edit Task"
+                          aria-label="Edit Task"
                         >
                           <Edit2 size={16} />
                           Edit
@@ -483,8 +520,9 @@ export default function TasksPage() {
                             setTaskToDelete(task.id);
                             setDeleteDialogOpen(true);
                           }}
-                          className="flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+                          className="flex items-center gap-1 rounded-lg bg-red-500 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-600"
                           title="Delete Task"
+                          aria-label="Delete Task"
                         >
                           <Trash2 size={16} />
                           Delete
@@ -495,19 +533,20 @@ export default function TasksPage() {
                 </ul>
               )}
 
-              {/* Pagination Controls - Only show when there are tasks */}
-              <div className="flex items-center justify-center gap-2">
+              {/* Pagination Controls */}
+              <div className="mt-6 flex items-center justify-center gap-2">
                 <button
                   onClick={() =>
                     setCurrentPage((prev) => Math.max(prev - 1, 1))
                   }
                   disabled={currentPage === 1}
-                  className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  aria-label="Previous Page"
                 >
                   <ChevronLeft size={16} />
                   Previous
                 </button>
-                <span className="text-sm text-gray-600">
+                <span className="text-sm font-medium text-blue-900">
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
@@ -515,7 +554,8 @@ export default function TasksPage() {
                     setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                   }
                   disabled={currentPage === totalPages}
-                  className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  aria-label="Next Page"
                 >
                   Next
                   <ChevronRight size={16} />
@@ -533,16 +573,25 @@ export default function TasksPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
           onClick={() => setDrawerOpen(false)}
+          aria-modal="true"
+          role="dialog"
         >
           <div
-            className="max-h-[90vh] w-full max-w-xl overflow-auto rounded bg-white p-6 shadow-lg"
+            className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-2xl bg-white p-8 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">
-                {isEditMode ? "Edit Task" : "Create Task"}
-              </h2>
-              <button onClick={() => setDrawerOpen(false)}>
+              <div className="flex items-center gap-2">
+                <ClipboardList size={24} className="text-blue-600" />
+                <h2 className="text-2xl font-bold">
+                  {isEditMode ? "Edit Task" : "Create Task"}
+                </h2>
+              </div>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="rounded-full p-1 hover:bg-gray-100"
+                aria-label="Close Drawer"
+              >
                 <X size={24} />
               </button>
             </div>
@@ -553,6 +602,7 @@ export default function TasksPage() {
                 handleFormSubmit();
               }}
               className="space-y-4"
+              aria-label={isEditMode ? "Edit Task Form" : "Create Task Form"}
             >
               <div>
                 <label htmlFor="title" className="mb-1 block font-semibold">
@@ -565,6 +615,7 @@ export default function TasksPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full rounded border border-gray-300 p-2"
+                  aria-required="true"
                 />
               </div>
 

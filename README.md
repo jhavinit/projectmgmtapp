@@ -1,29 +1,199 @@
-# Create T3 App
+# README.md
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+## Project Management App
 
-## What's next? How do I make an app with this?
+A modern web-based project management application built with Next.js, TypeScript, Prisma, and SST. The app provides tools for managing projects, tasks, analytics, and team collaboration, featuring Kanban boards, Gantt charts, and more.
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+### Features
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+- User authentication (register, login)
+- Project and task management
+- Kanban board and Gantt chart views
+- Analytics dashboard
+- Responsive UI with reusable components
+- Serverless deployment with SST
+- Database integration via Prisma
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+### Tech Stack
 
-## Learn More
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS
+- **Backend:** Next.js API routes, Prisma ORM
+- **Database:** (Configured via Prisma, see `prisma/`)
+- **Deployment:** SST (Serverless Stack)
+- **Linting/Formatting:** ESLint, Prettier
+- **Other:** TRPC for type-safe APIs
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+### Getting Started
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+#### Prerequisites
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+- Node.js (v16+)
+- npm or yarn
+- PostgreSQL (or your configured database)
 
-## How do I deploy this?
+#### Installation
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+```sh
+git clone <repo-url>
+cd projectmgmtapp
+npm install
+```
+
+#### Environment Variables
+
+Copy `.env.example` to `.env` and configure your database and other secrets.
+
+#### Database Setup
+
+```sh
+npx prisma generate
+npx prisma db push
+
+# in case of migration
+npx prisma migrate dev
+
+```
+
+#### SST Setup
+
+Go to and fill values for:
+NEXTAUTH_URL: "",
+NEXTAUTH_SECRET: "",
+DATABASE_URL: "",
+HUGGING_FACE_API_KEY: "",
+
+```
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference path="./.sst/platform/config.d.ts" />
+
+export default $config({
+  app(input) {
+    return {
+      name: "projectmgmtapp",
+      removal: input?.stage === "production" ? "retain" : "remove",
+      protect: ["production"].includes(input?.stage),
+      home: "aws",
+    };
+  },
+  async run() {
+    new sst.aws.Nextjs("MyWeb", {
+      environment: {
+        NEXTAUTH_URL: "",
+        NEXTAUTH_SECRET: "",
+        DATABASE_URL: "",
+        HUGGING_FACE_API_KEY: "",
+      },
+    });
+  },
+});
+```
+
+#### Running the App
+
+```sh
+npm run dev
+```
+
+#### Building for Production
+
+```sh
+npm run build
+# npm start
+```
+
+#### Linting & Formatting
+
+```sh
+npm run lint
+npm run format
+```
+
+#### Testing
+
+```sh
+npm run test
+```
+
+#### How to deploy
+
+```sh
+npx sst deploy --stage prod
+```
+
+### Project Structure
+
+- `src/components/` – Reusable UI components (KanbanBoard, GanttChart, etc.)
+- `src/pages/` – Next.js pages (dashboard, analytics, projects, tasks, auth)
+- `src/server/` – Server-side logic, API routes, TRPC routers
+- `src/utils/` – Utility functions and API helpers
+- `prisma/` – Prisma schema and migrations
+- `public/` – Static assets
+- `styles/` – Global styles (Tailwind CSS)
+
+### Scripts
+
+- `start-database.sh` – Helper script to start the local database
+
+### Deployment
+
+Deployment is managed via SST. See [sst.config.ts](sst.config.ts) for configuration.
+
+---
+
+## Project Requirements Document
+
+### Functional Requirements
+
+1. **User Authentication**
+
+   - Register, login, and logout functionality
+   - Secure password storage
+
+2. **Project Management**
+
+   - Create, update, delete, and view projects
+   - Assign users to projects
+
+3. **Task Management**
+
+   - Create, update, delete, and view tasks
+   - Assign tasks to users
+   - Track task status (To Do, In Progress, Done)
+
+4. **Views**
+
+   - Kanban board for task management
+   - Gantt chart for project timelines
+
+5. **Analytics**
+
+   - Dashboard with project/task analytics
+
+6. **Navigation**
+
+   - Sidebar, breadcrumbs, and back button for easy navigation
+
+7. **Responsive Design**
+   - Mobile and desktop support
+
+### Non-Functional Requirements
+
+- **Performance:** Fast load times, optimized assets
+- **Security:** Secure authentication, environment variable management
+- **Scalability:** Serverless deployment with SST
+- **Maintainability:** Modular codebase, linting, and formatting enforced
+
+### External Dependencies
+
+- Node.js, npm/yarn
+- PostgreSQL (or configured DB)
+- Prisma ORM
+- SST for deployment
+
+### Environment Variables
+
+- Database connection string
+- JWT secret (if applicable)
+- AWS
+
+---

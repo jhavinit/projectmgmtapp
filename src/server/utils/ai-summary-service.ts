@@ -1,17 +1,23 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/**
+ * Utility functions for generating project summaries using AI services.
+ * Supports both OpenAI (commented out) and Hugging Face APIs.
+ */
 
 import { env } from "process";
 
+/*
+// Uncomment and configure OpenAI if needed.
 // import { OpenAI } from "openai";
 
 // const openai = new OpenAI({
-//   apiKey:
-//     "",
+//   apiKey: env.OPENAI_API_KEY || "",
 // });
 
+/**
+ * Generates a concise summary of project details using OpenAI.
+ * @param details - The project details to summarize.
+ * @returns The summary string.
+ */
 // export async function getProjectSummary(details: string): Promise<string> {
 //   const prompt = `
 //   Summarize the following project details concisely:
@@ -47,10 +53,16 @@ import { env } from "process";
 //   }
 // }
 
-export async function summarizeWithHuggingFace(text: string) {
+
+/**
+ * Generates a summary of the provided text using Hugging Face's BART model.
+ * @param text - The text to summarize.
+ * @returns The summary string, or an empty string on error.
+ */
+export async function summarizeWithHuggingFace(text: string): Promise<string> {
   try {
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/facebook/bart-large-cnn",
+      env.HUGGING_FACE_API_URL ?? "https://api-inference.huggingface.co/models/facebook/bart-large-cnn",
       {
         method: "POST",
         headers: {
@@ -61,8 +73,8 @@ export async function summarizeWithHuggingFace(text: string) {
       },
     );
 
-    const data = await response.json();
-    return data[0].summary_text;
+    const data = (await response.json()) as { summary_text: string }[];
+    return Array.isArray(data) && data[0]?.summary_text ? data[0].summary_text : "";
   } catch (error) {
     console.error("Error summarizing with Hugging Face:", error);
     return "";

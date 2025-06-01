@@ -12,13 +12,20 @@ import { AnimatePresence, motion } from "framer-motion";
 import Loading from "~/components/Loading";
 import { Breadcrumbs } from "~/components/Breadcrumbs";
 
-const publicRoutes = ["/", "/login", "/register", "/404"];
+/**
+ * List of routes that do not require authentication.
+ */
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/404"];
 
+/**
+ * AuthGuard component protects private routes.
+ * Redirects unauthenticated users to login and shows loading spinner while session is loading.
+ */
 const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const isPublic = publicRoutes.includes(router.pathname);
+  const isPublic = PUBLIC_ROUTES.includes(router.pathname);
 
   if (status === "loading") return <Loading />;
 
@@ -30,12 +37,16 @@ const AuthGuard = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+/**
+ * MyApp is the root component for all pages.
+ * Handles session context, route protection, layout, and global UI providers.
+ */
 const MyApp: AppType<{ session: Session | null }> = ({
   Component,
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
-  const isPublic = publicRoutes.includes(router.pathname);
+  const isPublic = PUBLIC_ROUTES.includes(router.pathname);
 
   return (
     <SessionProvider session={session}>
@@ -43,9 +54,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
         <div className={GeistSans.className}>
           <Toaster position="bottom-center" />
           {isPublic ? (
+            // Public routes do not use layout or animation
             <Component {...pageProps} />
           ) : (
-            <AnimatePresence>
+            // Private routes use layout and page transition animation
+            <AnimatePresence mode="wait">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
